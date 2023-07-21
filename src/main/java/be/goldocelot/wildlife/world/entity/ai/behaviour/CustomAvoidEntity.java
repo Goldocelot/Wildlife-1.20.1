@@ -89,6 +89,12 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
 
         if (target.isEmpty()) return false;
 
+        if(BrainUtils.hasMemory(entity, MemoryModuleType.TEMPTING_PLAYER)) {
+            if(BrainUtils.getMemory(entity, MemoryModuleType.TEMPTING_PLAYER).equals(target.get())) {
+                return false;
+            }
+        }
+
         avoidingTarget = target.get();
 
         avoidPosition = getAvoidPosition(entity);
@@ -109,7 +115,6 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
 
     protected void tick(E entity) {
         double dist = entity.position().distanceTo(avoidPosition);
-        System.out.println(dist + " | " + lastDist);
         if(dist != lastDist && dist >= 1){
             lastDist = dist;
             return;

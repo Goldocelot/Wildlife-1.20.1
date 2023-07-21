@@ -33,7 +33,7 @@ public class ModEvents {
     public class ForgeServerEvents{
         @SubscribeEvent
         public static void entityFinalizeEvent(MobSpawnEvent.FinalizeSpawn event){
-            if(event.getSpawnType() != MobSpawnType.NATURAL) return;
+            if(event.getSpawnType() != MobSpawnType.NATURAL && event.getSpawnType() != MobSpawnType.CHUNK_GENERATION) return;
             if(event.getEntity() instanceof Hyena) event.setSpawnData(HyenaColorUniformizer.getInstance().uniformizeHyenaColor(event.getEntity().position()));
         }
     }

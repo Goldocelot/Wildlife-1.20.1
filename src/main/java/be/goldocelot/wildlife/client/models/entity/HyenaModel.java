@@ -18,6 +18,7 @@ public class HyenaModel extends GeoModel<Hyena> {
 
     @Override
     public ResourceLocation getTextureResource(Hyena animatable) {
+        if(animatable.isLordKast()) return new ResourceLocation(WildLife.MOD_ID, "textures/entity/hyena/hyena_texture_lordkast.png");
         return new ResourceLocation(WildLife.MOD_ID, "textures/entity/hyena/hyena_texture_color_" + animatable.getHyenaColor().name().toLowerCase() + ".png");
     }
 

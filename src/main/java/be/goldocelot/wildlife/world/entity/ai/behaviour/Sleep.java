@@ -41,7 +41,7 @@ public class Sleep<E extends LivingEntity & SleepingEntity> extends ExtendedBeha
 
     private boolean canSleep(E entity){
         Long worldTime = BrainUtils.getMemory(entity, ModMemories.WORLD_TIME.get());
-        return (worldTime>startSleep.apply(entity) && worldTime <=24000) || (worldTime<endSleep.apply(entity) && worldTime>=0);
+        return entity.getLastHurtByMob() == null && ((worldTime>startSleep.apply(entity) && worldTime <=24000) || (worldTime<endSleep.apply(entity) && worldTime>=0));
     }
 
     @Override

@@ -22,7 +22,7 @@ public class HyenaPatternLayer extends GeoRenderLayer<Hyena> {
     @Override
     public void render(PoseStack poseStack, Hyena animatable, BakedGeoModel bakedModel, RenderType renderType, MultiBufferSource bufferSource, VertexConsumer buffer, float partialTick, int packedLight, int packedOverlay) {
         HyenaPattern pattern = animatable.getHyenaPattern();
-        if(pattern == HyenaPattern.NONE) return;
+        if(animatable.isLordKast() || pattern == HyenaPattern.NONE) return;
 
         RenderType layerRenderType = RenderType.entityTranslucentCull(new ResourceLocation(WildLife.MOD_ID, "textures/entity/hyena/hyena_texture_pattern_"+pattern.toString().toLowerCase()+".png"));
 

@@ -9,6 +9,7 @@ import net.minecraft.world.entity.player.Player;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.move.FollowEntity;
 import net.tslat.smartbrainlib.util.BrainUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 public class FollowTemptingPlayer<E extends PathfinderMob> extends FollowEntity<E, Player> {
     private static final List<Pair<MemoryModuleType<?>, MemoryStatus>> MEMORY_REQUIREMENTS = ObjectArrayList.of(Pair.of(MemoryModuleType.TEMPTING_PLAYER, MemoryStatus.VALUE_PRESENT));
@@ -21,6 +22,10 @@ public class FollowTemptingPlayer<E extends PathfinderMob> extends FollowEntity<
 
     @Override
     protected List<Pair<MemoryModuleType<?>, MemoryStatus>> getMemoryRequirements() {
-        return MEMORY_REQUIREMENTS;
+        List<Pair<MemoryModuleType<?>, MemoryStatus>> requirements = new ArrayList<>();
+        requirements.addAll(super.getMemoryRequirements());
+        requirements.addAll(MEMORY_REQUIREMENTS);
+
+        return requirements;
     }
 }

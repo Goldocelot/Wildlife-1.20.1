@@ -3,6 +3,7 @@ package be.goldocelot.wildlife.world.entity.hyena;
 import be.goldocelot.wildlife.registeries.ModEntities;
 import be.goldocelot.wildlife.world.SleepingEntity;
 import be.goldocelot.wildlife.world.entity.ai.behaviour.*;
+import be.goldocelot.wildlife.world.entity.ai.sensor.CustomNearbyItemSensor;
 import be.goldocelot.wildlife.world.entity.ai.sensor.WorldTimeSensor;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.nbt.CompoundTag;
@@ -27,7 +28,9 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.tslat.smartbrainlib.api.SmartBrainOwner;
 import net.tslat.smartbrainlib.api.core.BrainActivityGroup;
 import net.tslat.smartbrainlib.api.core.SmartBrainProvider;
+import net.tslat.smartbrainlib.api.core.behaviour.AllApplicableBehaviours;
 import net.tslat.smartbrainlib.api.core.behaviour.FirstApplicableBehaviour;
+import net.tslat.smartbrainlib.api.core.behaviour.OneRandomBehaviour;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.attack.AnimatableMeleeAttack;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.move.MoveToWalkTarget;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.path.SetRandomWalkTarget;
@@ -132,8 +135,29 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
         return pStack.getItem().equals(getTemptItem());
     }
 
+    public boolean canTakeItem(ItemStack pItemstack) {
+        EquipmentSlot equipmentslot = Mob.getEquipmentSlotForItem(pItemstack);
+        if (!this.getItemBySlot(equipmentslot).isEmpty()) {
+            return false;
+        } else {
+            return equipmentslot == EquipmentSlot.MAINHAND && super.canTakeItem(pItemstack);
+        }
+    }
+
+    public boolean canPickUpLoot() {
+        return true;
+    }
+    public boolean canHoldItem(ItemStack pStack) {
+        ItemStack itemstack = this.getItemBySlot(EquipmentSlot.MAINHAND);
+        return itemstack.isEmpty() && isFood(pStack);
+    }
+
     public Item getTemptItem() {
         return Items.ROTTEN_FLESH;
+    }
+
+    public boolean isLordKast(){
+        return getDisplayName().getString().equals("LordKast");
     }
 
     @Override
@@ -193,7 +217,7 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
                 new NearbyPlayersSensor<>(),
                 new NearbyLivingEntitySensor<>(),
                 new HurtBySensor<>(),
-                new NearbyItemsSensor<>(),
+                new CustomNearbyItemSensor<>(),
                 new ItemTemptingSensor<Hyena>().setTemptingItems(Ingredient.of(getTemptItem()))
         );
     }
@@ -220,12 +244,15 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
                         }),
                         new Breed<Hyena, Hyena>(),
                         new FollowTemptingPlayer<Hyena>().stopFollowingWithin(1f),
-                        new CustomAvoidEntity<>().avoiding((entity) -> entity instanceof Player).noCloserThan(6).stopCaringAfter(10),
-                        new SetRandomWalkTarget<Hyena>().setRadius(6,5).cooldownFor(entity -> entity.getRandom().nextInt(100, 400))
-                ),
-                new FirstApplicableBehaviour<>(
-                        new SetPlayerLookTarget<>().predicate((entity) -> entity.position().distanceTo(this.position()) <6.5f).cooldownFor(entity -> entity.getRandom().nextInt(100,200)),
-                        new SetRandomLookTarget<>().cooldownFor(entity -> entity.getRandom().nextInt(100,200))
+                        new CustomAvoidEntity<>().avoiding((entity) -> entity instanceof  Player).noCloserThan(6).stopCaringAfter(10),
+                        new SetItemWalkTarget<>().setMaxRange((entity) -> 15f).setItemTargetPredicate((entity, item) -> this.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()),
+                        new OneRandomBehaviour<>(
+                                new SetRandomWalkTarget<Hyena>().setRadius(6,5).cooldownFor(entity -> entity.getRandom().nextInt(100, 400)),
+                                new FirstApplicableBehaviour<>(
+                                        new SetPlayerLookTarget<>().predicate((entity) -> entity.position().distanceTo(this.position()) <6.5f).cooldownFor(entity -> entity.getRandom().nextInt(100,200)),
+                                        new SetRandomLookTarget<>().cooldownFor(entity -> entity.getRandom().nextInt(100,200))
+                                )
+                        )
                 )
         );
     }
