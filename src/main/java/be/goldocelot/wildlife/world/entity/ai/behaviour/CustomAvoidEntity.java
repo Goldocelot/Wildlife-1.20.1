@@ -32,51 +32,29 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
     protected double lastDist;
     protected LivingEntity avoidingTarget;
 
-
-
     @Override
     protected List<Pair<MemoryModuleType<?>, MemoryStatus>> getMemoryRequirements() {
         return MEMORY_REQUIREMENTS;
     }
 
-    /**
-     * Set the minimum distance the target entity should be allowed to come before the entity starts retreating.
-     * @param blocks The distance, in blocks
-     * @return this
-     */
     public CustomAvoidEntity<E> noCloserThan(float blocks) {
         this.noCloserThanSqr = blocks * blocks;
 
         return this;
     }
 
-    /**
-     * Set the maximum distance the target entity should be before the entity stops retreating.
-     * @param blocks The distance, in blocks
-     * @return this
-     */
     public CustomAvoidEntity<E> stopCaringAfter(float blocks) {
         this.stopAvoidingAfterSqr = blocks * blocks;
 
         return this;
     }
 
-    /**
-     * Sets the predicate for entities to avoid.
-     * @param predicate The predicate
-     * @return this
-     */
     public CustomAvoidEntity<E> avoiding(Predicate<LivingEntity> predicate) {
         this.avoidingPredicate = predicate;
 
         return this;
     }
 
-    /**
-     * Set the movespeed modifier for when the entity is running away.
-     * @param mod The speed multiplier modifier
-     * @return this
-     */
     public CustomAvoidEntity<E> speedModifier(float mod) {
         this.speedModifier = mod;
 
@@ -85,17 +63,9 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
 
     @Override
     protected boolean checkExtraStartConditions(ServerLevel level, E entity) {
-        Optional<LivingEntity> target = BrainUtils.getMemory(entity, MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES).findClosest(this.avoidingPredicate);
+        refreshAvoidingTarget(entity);
 
-        if (target.isEmpty()) return false;
-
-        if(BrainUtils.hasMemory(entity, MemoryModuleType.TEMPTING_PLAYER)) {
-            if(BrainUtils.getMemory(entity, MemoryModuleType.TEMPTING_PLAYER).equals(target.get())) {
-                return false;
-            }
-        }
-
-        avoidingTarget = target.get();
+        if(avoidingTarget==null) return false;
 
         avoidPosition = getAvoidPosition(entity);
 
@@ -105,7 +75,7 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
 
     @Override
     protected boolean shouldKeepRunning(E entity) {
-        return entity.distanceToSqr(avoidingTarget) < this.stopAvoidingAfterSqr;
+        return entity.distanceToSqr(avoidingTarget) < this.stopAvoidingAfterSqr && avoidingPredicate.test(avoidingTarget);
     }
 
     @Override
@@ -114,6 +84,8 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
     }
 
     protected void tick(E entity) {
+        refreshAvoidingTarget(entity);
+
         double dist = entity.position().distanceTo(avoidPosition);
         if(dist != lastDist && dist >= 1){
             lastDist = dist;
@@ -140,6 +112,12 @@ public class CustomAvoidEntity<E extends PathfinderMob> extends ExtendedBehaviou
             return null;
 
         return position;
+    }
+
+    public void refreshAvoidingTarget(E entity){
+        Optional<LivingEntity> target = BrainUtils.getMemory(entity, MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES).findClosest(this.avoidingPredicate);
+
+        if (!target.isEmpty()) avoidingTarget = target.get();
     }
 
     @Override

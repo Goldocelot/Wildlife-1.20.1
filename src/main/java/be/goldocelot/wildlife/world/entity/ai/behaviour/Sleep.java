@@ -1,7 +1,7 @@
 package be.goldocelot.wildlife.world.entity.ai.behaviour;
 
 import be.goldocelot.wildlife.registeries.ModMemories;
-import be.goldocelot.wildlife.world.SleepingEntity;
+import be.goldocelot.wildlife.world.entity.SleepingEntity;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.server.level.ServerLevel;
@@ -31,17 +31,21 @@ public class Sleep<E extends LivingEntity & SleepingEntity> extends ExtendedBeha
 
     @Override
     protected void start(E entity) {
-        entity.setSleeping(true);
+        entity.setResting(true);
+    }
+
+    protected void tick(ServerLevel level, E entity, long gameTime) {
+        if(!entity.isResting()) entity.setResting(canSleep(entity));
     }
 
     @Override
     protected void stop(E entity) {
-        entity.setSleeping(false);
+        entity.setResting(false);
     }
 
     private boolean canSleep(E entity){
         Long worldTime = BrainUtils.getMemory(entity, ModMemories.WORLD_TIME.get());
-        return entity.getLastHurtByMob() == null && ((worldTime>startSleep.apply(entity) && worldTime <=24000) || (worldTime<endSleep.apply(entity) && worldTime>=0));
+        return entity.getLastHurtByMob() == null && !(worldTime>endSleep.apply(entity) && worldTime<startSleep.apply(entity));
     }
 
     @Override

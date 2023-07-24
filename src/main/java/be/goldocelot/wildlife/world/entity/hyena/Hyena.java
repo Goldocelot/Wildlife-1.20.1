@@ -1,12 +1,14 @@
 package be.goldocelot.wildlife.world.entity.hyena;
 
 import be.goldocelot.wildlife.registeries.ModEntities;
-import be.goldocelot.wildlife.world.SleepingEntity;
+import be.goldocelot.wildlife.world.entity.ChewingEntity;
+import be.goldocelot.wildlife.world.entity.SleepingEntity;
 import be.goldocelot.wildlife.world.entity.ai.behaviour.*;
 import be.goldocelot.wildlife.world.entity.ai.sensor.CustomNearbyItemSensor;
 import be.goldocelot.wildlife.world.entity.ai.sensor.WorldTimeSensor;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -16,10 +18,11 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -28,7 +31,6 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.tslat.smartbrainlib.api.SmartBrainOwner;
 import net.tslat.smartbrainlib.api.core.BrainActivityGroup;
 import net.tslat.smartbrainlib.api.core.SmartBrainProvider;
-import net.tslat.smartbrainlib.api.core.behaviour.AllApplicableBehaviours;
 import net.tslat.smartbrainlib.api.core.behaviour.FirstApplicableBehaviour;
 import net.tslat.smartbrainlib.api.core.behaviour.OneRandomBehaviour;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.attack.AnimatableMeleeAttack;
@@ -40,7 +42,6 @@ import net.tslat.smartbrainlib.api.core.behaviour.custom.target.SetPlayerLookTar
 import net.tslat.smartbrainlib.api.core.behaviour.custom.target.SetRandomLookTarget;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.target.TargetOrRetaliate;
 import net.tslat.smartbrainlib.api.core.sensor.ExtendedSensor;
-import net.tslat.smartbrainlib.api.core.sensor.custom.NearbyItemsSensor;
 import net.tslat.smartbrainlib.api.core.sensor.vanilla.HurtBySensor;
 import net.tslat.smartbrainlib.api.core.sensor.vanilla.ItemTemptingSensor;
 import net.tslat.smartbrainlib.api.core.sensor.vanilla.NearbyLivingEntitySensor;
@@ -59,12 +60,13 @@ import software.bernie.geckolib.core.object.PlayState;
 
 import java.util.List;
 
-public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, SleepingEntity {
+public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, SleepingEntity, ChewingEntity {
 
     public static final float INTERESTING_HEALTH_THRESHOLD = 0.3f;
     private static final EntityDataAccessor<Integer> COLOR = SynchedEntityData.defineId(Hyena.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> PATTERN = SynchedEntityData.defineId(Hyena.class, EntityDataSerializers.INT);
-    private static final EntityDataAccessor<Boolean> SLEEPING = SynchedEntityData.defineId(Hyena.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> RESTING = SynchedEntityData.defineId(Hyena.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> CHEWING = SynchedEntityData.defineId(Hyena.class, EntityDataSerializers.BOOLEAN);
     private AnimatableInstanceCache cache = new SingletonAnimatableInstanceCache(this);
 
     public Hyena(EntityType<? extends Animal> pEntityType, Level pLevel) {
@@ -83,21 +85,24 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
         super.defineSynchedData();
         this.entityData.define(COLOR, 0);
         this.entityData.define(PATTERN, 0);
-        this.entityData.define(SLEEPING, !level().isDay());
+        this.entityData.define(RESTING, false);
+        this.entityData.define(CHEWING, false);
     }
 
     public void addAdditionalSaveData(CompoundTag pCompound) {
         super.addAdditionalSaveData(pCompound);
         pCompound.putInt("color", getHyenaColor().ordinal());
         pCompound.putInt("pattern", getHyenaPattern().ordinal());
-        pCompound.putBoolean("sleeping", isSleeping());
+        pCompound.putBoolean("resting", isResting());
+        pCompound.putBoolean("chewing", isChewing());
     }
 
     public void readAdditionalSaveData(CompoundTag pCompound) {
         super.readAdditionalSaveData(pCompound);
         setHyenaColor(HyenaColor.values()[pCompound.getInt("color")]);
         setHyenaPattern(HyenaPattern.values()[pCompound.getInt("pattern")]);
-        setSleeping(pCompound.getBoolean("sleeping"));
+        setResting(pCompound.getBoolean("resting"));
+        setChewing(pCompound.getBoolean("chewing"));
     }
 
     @Override
@@ -123,6 +128,7 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
         return hyena;
     }
 
+
     //Needed cause of the SmartBrainLib issue
     @Override
     public boolean isAlliedTo(Entity pEntity) {
@@ -132,28 +138,46 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
     @Override
     public boolean isFood(ItemStack pStack) {
         if(isSleeping()) return false;
-        return pStack.getItem().equals(getTemptItem());
+        return getTemptItem().test(pStack);
     }
 
     public boolean canTakeItem(ItemStack pItemstack) {
         EquipmentSlot equipmentslot = Mob.getEquipmentSlotForItem(pItemstack);
-        if (!this.getItemBySlot(equipmentslot).isEmpty()) {
-            return false;
-        } else {
-            return equipmentslot == EquipmentSlot.MAINHAND && super.canTakeItem(pItemstack);
-        }
+        return equipmentslot == EquipmentSlot.MAINHAND && super.canTakeItem(pItemstack);
     }
 
     public boolean canPickUpLoot() {
-        return true;
+        return getMainHandItem().isEmpty();
     }
+
+    protected void pickUpItem(ItemEntity pItemEntity) {
+        ItemStack itemstack = pItemEntity.getItem();
+        if (this.canHoldItem(itemstack)) {
+            int i = itemstack.getCount();
+            if (i > 1) {
+                this.dropItemStack(itemstack.split(i - 1));
+            }
+
+            this.onItemPickup(pItemEntity);
+            this.setItemSlot(EquipmentSlot.MAINHAND, itemstack.split(1));
+            this.setGuaranteedDrop(EquipmentSlot.MAINHAND);
+            this.take(pItemEntity, itemstack.getCount());
+            pItemEntity.discard();
+        }
+    }
+
+    private void dropItemStack(ItemStack pStack) {
+        ItemEntity itementity = new ItemEntity(this.level(), this.getX(), this.getY(), this.getZ(), pStack);
+        this.level().addFreshEntity(itementity);
+    }
+
     public boolean canHoldItem(ItemStack pStack) {
         ItemStack itemstack = this.getItemBySlot(EquipmentSlot.MAINHAND);
         return itemstack.isEmpty() && isFood(pStack);
     }
 
-    public Item getTemptItem() {
-        return Items.ROTTEN_FLESH;
+    public Ingredient getTemptItem() {
+        return Ingredient.of(Items.ROTTEN_FLESH);
     }
 
     public boolean isLordKast(){
@@ -166,14 +190,12 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
     }
 
     private PlayState predicate(AnimationState<GeoAnimatable> geoAnimatableAnimationState) {
-        if (isSleeping()) geoAnimatableAnimationState.setAndContinue(DefaultAnimations.REST);
-        else if (geoAnimatableAnimationState.isMoving())
-            geoAnimatableAnimationState.setAndContinue(DefaultAnimations.WALK);
+        if (isResting()) geoAnimatableAnimationState.setAndContinue(DefaultAnimations.REST);
+        else if (geoAnimatableAnimationState.isMoving()) geoAnimatableAnimationState.setAndContinue(DefaultAnimations.WALK);
         else geoAnimatableAnimationState.setAndContinue(DefaultAnimations.IDLE);
 
         return PlayState.CONTINUE;
     }
-
 
     @Override
     public boolean wantsToPickUp(ItemStack stack) {
@@ -201,13 +223,22 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
         this.entityData.set(PATTERN, hyenaPattern.ordinal());
     }
 
-    public boolean isSleeping() {
-        return this.entityData.get(SLEEPING);
+    public boolean isResting() {
+        return this.entityData.get(RESTING);
     }
 
     @Override
-    public void setSleeping(boolean sleeping) {
-        this.entityData.set(SLEEPING, sleeping);
+    public void setResting(boolean sleeping) {
+        this.entityData.set(RESTING, sleeping);
+    }
+
+    public boolean isChewing() {
+        return this.entityData.get(CHEWING);
+    }
+
+    @Override
+    public void setChewing(boolean chewing) {
+        this.entityData.set(CHEWING, chewing);
     }
 
     @Override
@@ -218,7 +249,7 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
                 new NearbyLivingEntitySensor<>(),
                 new HurtBySensor<>(),
                 new CustomNearbyItemSensor<>(),
-                new ItemTemptingSensor<Hyena>().setTemptingItems(Ingredient.of(getTemptItem()))
+                new ItemTemptingSensor<Hyena>().setTemptingItems(getTemptItem())
         );
     }
 
@@ -244,7 +275,8 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
                         }),
                         new Breed<Hyena, Hyena>(),
                         new FollowTemptingPlayer<Hyena>().stopFollowingWithin(1f),
-                        new CustomAvoidEntity<>().avoiding((entity) -> entity instanceof  Player).noCloserThan(6).stopCaringAfter(10),
+                        new CustomAvoidEntity<>().avoiding((entity) -> entity instanceof Player && !getTemptItem().test(entity.getMainHandItem()) && !getTemptItem().test(entity.getOffhandItem())).noCloserThan(6).stopCaringAfter(10),
+                        new ChewItem<Hyena>().setCanChewItem((entity) -> !entity.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty() && entity.isFood(entity.getMainHandItem())),
                         new SetItemWalkTarget<>().setMaxRange((entity) -> 15f).setItemTargetPredicate((entity, item) -> this.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()),
                         new OneRandomBehaviour<>(
                                 new SetRandomWalkTarget<Hyena>().setRadius(6,5).cooldownFor(entity -> entity.getRandom().nextInt(100, 400)),
@@ -261,8 +293,8 @@ public class Hyena extends Animal implements GeoEntity, SmartBrainOwner<Hyena>, 
     public BrainActivityGroup<Hyena> getCoreTasks() {
         return BrainActivityGroup.coreTasks(
                 new Sleep<Hyena>(),
-                new CustomLookAtTarget<Hyena>().cooldownForIfNotTempted(entity -> entity.getRandom().nextInt(60, 100)).stopIf((hyena -> hyena.isSleeping())).runFor(entity -> entity.getRandom().nextInt(40, 80)).startCondition((entity) -> !entity.isSleeping()),
-                new MoveToWalkTarget<Hyena>().startCondition((entity)->!entity.isSleeping()).stopIf((entity)-> entity.isSleeping())
+                new CustomLookAtTarget<Hyena>().cooldownForIfNotTempted(entity -> entity.getRandom().nextInt(60, 100)).stopIf((hyena -> hyena.isResting())).runFor(entity -> entity.getRandom().nextInt(40, 80)).startCondition((entity) -> !entity.isResting()),
+                new MoveToWalkTarget<Hyena>().startCondition((entity)->!entity.isResting()).stopIf((entity)-> entity.isResting())
         );
     }
 

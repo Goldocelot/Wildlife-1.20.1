@@ -4,12 +4,16 @@ import be.goldocelot.wildlife.WildLife;
 import be.goldocelot.wildlife.world.entity.hyena.Hyena;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import software.bernie.geckolib.constant.DataTickets;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
+import software.bernie.geckolib.model.DefaultedEntityGeoModel;
 import software.bernie.geckolib.model.GeoModel;
 import software.bernie.geckolib.model.data.EntityModelData;
 
+@OnlyIn(Dist.CLIENT)
 public class HyenaModel extends GeoModel<Hyena> {
     @Override
     public ResourceLocation getModelResource(Hyena animatable) {
@@ -26,6 +30,7 @@ public class HyenaModel extends GeoModel<Hyena> {
     public ResourceLocation getAnimationResource(Hyena animatable) {
         return new ResourceLocation(WildLife.MOD_ID, "animations/entity/hyena.animation.json");
     }
+
 
     @Override
     public void setCustomAnimations(Hyena animatable, long instanceId, AnimationState<Hyena> animationState) {

@@ -37,7 +37,6 @@ public class CustomLookAtTarget<E extends Mob> extends ExtendedBehaviour<E> {
     @Override
     protected void tick(E entity) {
         BrainUtils.withMemory(entity, MemoryModuleType.LOOK_TARGET, target -> {
-            //System.out.println("TARGET IS: "+target.currentPosition());
             entity.getLookControl().setLookAt(target.currentPosition());
         });
     }
